@@ -27,7 +27,8 @@ class GuiClass(QtGui.QDialog):
     def initUI(self): 
         self.success = False
         self.mode = "flat"
-        self.setGeometry(250, 250, 320, 320)
+        self.setGeometry(250, 250, 320, 400)
+        self.setFixedSize(320, 400)
         self.setWindowTitle("Nya")
 
         ##  Labels and inputs.
@@ -49,21 +50,29 @@ class GuiClass(QtGui.QDialog):
         self.ti_h.setFixedWidth(80)
         self.ti_h.move(220, 70)
 
+        self.l_bh = QtGui.QLabel("Base height:", self)
+        self.l_bh.move(20, 120)
+        self.ti_bh = QtGui.QLineEdit(self)
+        self.ti_bh.setValidator(validator_double)
+        self.ti_bh.setText("2")
+        self.ti_bh.setFixedWidth(80)
+        self.ti_bh.move(220, 120)
+
         self.l_r = QtGui.QLabel("Radius:", self)
-        self.l_r.move(20, 120)
+        self.l_r.move(20, 170)
         self.ti_r = QtGui.QLineEdit(self)
         self.ti_r.setValidator(validator_double)
         self.ti_r.setText("2.5")
         self.ti_r.setFixedWidth(80)
-        self.ti_r.move(220, 120)
+        self.ti_r.move(220, 170)
 
         self.l_p = QtGui.QLabel("Pitch:", self)
-        self.l_p.move(20, 170)
+        self.l_p.move(20, 220)
         self.ti_p = QtGui.QLineEdit(self)
         self.ti_p.setValidator(validator_double)
         self.ti_p.setText("3")
         self.ti_p.setFixedWidth(80)
-        self.ti_p.move(220, 170)
+        self.ti_p.move(220, 220)
         ##  Labels and inputs end.
 
         ##  Additional options.
@@ -71,23 +80,23 @@ class GuiClass(QtGui.QDialog):
         self.rb_flat = QtGui.QRadioButton("flat end", self)
         self.rb_flat.clicked.connect(self.onFlatChosen)
         self.rb_flat.toggle()
-        self.rb_flat.move(20, 220)
+        self.rb_flat.move(20, 280)
 
         self.rb_hook = QtGui.QRadioButton("hook end", self)
         self.rb_hook.clicked.connect(self.onHookChosen)
-        self.rb_hook.move(210, 220)
+        self.rb_hook.move(210, 280)
         ##  Additional options end.
 
 
         ##  Confirm/Cancel buttons.
         bt_cancel = QtGui.QPushButton("Cancel", self)
         bt_cancel.clicked.connect(self.onCancel)
-        bt_cancel.move(20, 280)
+        bt_cancel.move(20, 350)
 
         bt_ok = QtGui.QPushButton("Make the spring", self)
         bt_ok.clicked.connect(self.onOk)
         bt_ok.setAutoDefault(True)
-        bt_ok.move(190, 280)
+        bt_ok.move(190, 350)
         ##  Confirm/Cancel buttons end.
 
 
@@ -142,49 +151,69 @@ def makeHook(doc, radius, wire_diameter = 0.5):
 
 
 if(form.success):
+    ##  Get input
     wire_diameter = float(form.ti_wd.text())
     radius = float(form.ti_r.text())
     height = float(form.ti_h.text())
+    base_height = float(form.ti_bh.text())
     pitch = float(form.ti_p.text())
+    ##  Input values end 
+
+    base_rotation = base_height/wire_diameter*360
 
     doc = App.activeDocument()
     
+    links = []
+
     ##  Hooked spring
     if(form.mode == "hook"):
-        central_height = height-radius*2
+        center_height = height-(radius+base_height)*2
+        center_rotation = center_height/pitch*360
 
-        lower = makeHook(doc, radius, wire_diameter)
-        lower.Placement = App.Placement(App.Vector(0,0,radius),App.Rotation(App.Vector(-1,0,0),90))
+        lower_hook = makeHook(doc, radius, wire_diameter)
+        lower_hook.Placement = App.Placement(App.Vector(0,0,radius),App.Rotation(App.Vector(-1,0,0),90))
+        links.append(lower_hook)
 
-        central = makeHelix(doc, central_height, pitch, radius, wire_diameter)
-        central.Placement = App.Placement(App.Vector(0, 0, radius), App.Rotation(0, 0, 0))
-        
-        angle = central_height/pitch*360
+        lower_placement = App.Placement(App.Vector(0, 0, radius), App.Rotation(0, 0, 0))
+        center_placement = App.Placement(App.Vector(0, 0, base_height+radius), App.Rotation(base_rotation, 0, 0))
+        upper_placement = App.Placement(App.Vector(0, 0, base_height+radius+center_height), App.Rotation(base_rotation+center_rotation, 0, 0))
 
-        upper = makeHook(doc, radius, wire_diameter)
-        upper.Placement = App.Placement(App.Vector(0,0,height - radius), App.Rotation(angle,0,90), App.Vector(0,0,0))
+        upper_hook = makeHook(doc, radius, wire_diameter)
+        upper_hook.Placement = App.Placement(App.Vector(0, 0, base_height+radius+center_height+base_height), App.Rotation(base_rotation+center_rotation+base_rotation, 0, 90), App.Vector(0,0,0))
+        links.append(upper_hook)
+
         
     ##  Flat-end spring as default
     else:
-        central_height = 28/30*height
-        base_height = (height-central_height)/2
+        center_height = height-(base_height)*2
+        center_rotation = center_height/pitch*360
 
+        lower_placement = App.Placement(App.Vector(0, 0, 0), App.Rotation(0, 0, 0))
+        center_placement = App.Placement(App.Vector(0, 0, base_height), App.Rotation(base_rotation, 0, 0))
+        upper_placement = App.Placement(App.Vector(0, 0, base_height+center_height), App.Rotation(base_rotation+center_rotation, 0, 0))
+    
+
+    center = makeHelix(doc, center_height, pitch, radius, wire_diameter)
+    center.Placement = center_placement
+    center.Label = "Central segment"
+    links.append(center) 
+    
+    
+    if(base_height >= wire_diameter):
         lower = makeHelix(doc, base_height, wire_diameter, radius, wire_diameter)
-        lower.Placement = App.Placement(App.Vector(0, 0, 0), App.Rotation(0, 0, 0))
-        angle = base_height/wire_diameter*360
-
-        central = makeHelix(doc, central_height, pitch, radius, wire_diameter)
-        central.Placement = App.Placement(App.Vector(0, 0, base_height), App.Rotation(angle, 0, 0))
-        angle = central_height/pitch*360
-
+        lower.Placement = lower_placement
+        lower.Label = "Lower segment"
+        links.append(lower)
         upper = makeHelix(doc, base_height, wire_diameter, radius, wire_diameter)
-        upper.Placement = App.Placement(App.Vector(0, 0, height - base_height), App.Rotation(angle, 0, 0))
+        upper.Placement = upper_placement
+        upper.Label = "Upper segment"
+        links.append(upper)
 
-    lower.Label = "Lower segment"
-    central.Label = "Central segment"
-    upper.Label = "Upper segment"
+
+
     compound = doc.addObject("Part::Compound", "springCompound")
-    compound.Links = [lower, central, upper,]
+    compound.Links = links 
+
 
     doc.recompute()
 
