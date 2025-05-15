@@ -1,5 +1,6 @@
 from PySide import QtCore, QtGui
 import FreeCAD as App
+import math
 ##===========================================================================##
 '''                         Graphical user interface code                   '''
 class GuiClass(QtGui.QDialog):
@@ -13,6 +14,9 @@ class GuiClass(QtGui.QDialog):
 
     def onHookChosen(self):
         self.mode = "hook"
+
+    def onCircleChosen(self):
+        self.mode = "circle"
 
     def onOk(self):
         self.success = True
@@ -34,7 +38,7 @@ class GuiClass(QtGui.QDialog):
         ##  Labels and inputs.
         validator_double = QtGui.QDoubleValidator()
 
-        self.l_wd = QtGui.QLabel("Wire diameter:", self)
+        self.l_wd = QtGui.QLabel("Wire diameter [mm]:", self)
         self.l_wd.move(20, 20) 
         self.ti_wd = QtGui.QLineEdit(self)
         self.ti_wd.setValidator(validator_double)
@@ -42,7 +46,7 @@ class GuiClass(QtGui.QDialog):
         self.ti_wd.setFixedWidth(80)
         self.ti_wd.move(220, 20)
 
-        self.l_h = QtGui.QLabel("Height:", self)
+        self.l_h = QtGui.QLabel("Height [mm]:", self)
         self.l_h.move(20, 70)
         self.ti_h = QtGui.QLineEdit(self)
         self.ti_h.setValidator(validator_double)
@@ -50,7 +54,7 @@ class GuiClass(QtGui.QDialog):
         self.ti_h.setFixedWidth(80)
         self.ti_h.move(220, 70)
 
-        self.l_bh = QtGui.QLabel("Base height:", self)
+        self.l_bh = QtGui.QLabel("Base height [mm]:", self)
         self.l_bh.move(20, 120)
         self.ti_bh = QtGui.QLineEdit(self)
         self.ti_bh.setValidator(validator_double)
@@ -58,7 +62,7 @@ class GuiClass(QtGui.QDialog):
         self.ti_bh.setFixedWidth(80)
         self.ti_bh.move(220, 120)
 
-        self.l_r = QtGui.QLabel("Radius:", self)
+        self.l_r = QtGui.QLabel("Radius [mm]:", self)
         self.l_r.move(20, 170)
         self.ti_r = QtGui.QLineEdit(self)
         self.ti_r.setValidator(validator_double)
@@ -66,7 +70,7 @@ class GuiClass(QtGui.QDialog):
         self.ti_r.setFixedWidth(80)
         self.ti_r.move(220, 170)
 
-        self.l_p = QtGui.QLabel("Pitch:", self)
+        self.l_p = QtGui.QLabel("Pitch [mm]:", self)
         self.l_p.move(20, 220)
         self.ti_p = QtGui.QLineEdit(self)
         self.ti_p.setValidator(validator_double)
@@ -85,6 +89,10 @@ class GuiClass(QtGui.QDialog):
         self.rb_hook = QtGui.QRadioButton("hook end", self)
         self.rb_hook.clicked.connect(self.onHookChosen)
         self.rb_hook.move(210, 280)
+
+        self.rb_hook = QtGui.QRadioButton("circle end", self)
+        self.rb_hook.clicked.connect(self.onCircleChosen)
+        self.rb_hook.move(120, 310)
         ##  Additional options end.
 
 
@@ -147,6 +155,17 @@ def makeHook(doc, radius, wire_diameter = 0.5):
     body.Angle3 = 150
 
     return body
+
+def makeCircle(doc, radius, wire_diameter = 0.5):
+    body = doc.addObject("Part::Torus", "Torus")
+
+    body.Radius1 = radius
+    body.Radius2 = wire_diameter/2
+    body.Angle1 = -180
+    body.Angle2 = 180
+    body.Angle3 = 360
+
+    return body
 ##  FreeCAD object functions end
 
 
@@ -160,6 +179,7 @@ if(form.success):
     ##  Input values end 
 
     base_rotation = base_height/wire_diameter*360
+    radius = radius - wire_diameter/2
 
     doc = App.activeDocument()
     
@@ -172,16 +192,46 @@ if(form.success):
 
         lower_hook = makeHook(doc, radius, wire_diameter)
         lower_hook.Placement = App.Placement(App.Vector(0,0,radius),App.Rotation(App.Vector(-1,0,0),90))
+        lower_hook.Label = "Lower hook"
         links.append(lower_hook)
 
-        lower_placement = App.Placement(App.Vector(0, 0, radius), App.Rotation(0, 0, 0))
-        center_placement = App.Placement(App.Vector(0, 0, base_height+radius), App.Rotation(base_rotation, 0, 0))
-        upper_placement = App.Placement(App.Vector(0, 0, base_height+radius+center_height), App.Rotation(base_rotation+center_rotation, 0, 0))
+        lower_placement = App.Placement(App.Vector(0, 0, radius), 
+                                        App.Rotation(0, 0, 0))
+        center_placement = App.Placement(App.Vector(0, 0, radius+base_height), 
+                                         App.Rotation(base_rotation, 0, 0))
+        upper_placement = App.Placement(App.Vector(0, 0, radius+base_height+center_height), 
+                                        App.Rotation(base_rotation+center_rotation, 0, 0))
 
         upper_hook = makeHook(doc, radius, wire_diameter)
-        upper_hook.Placement = App.Placement(App.Vector(0, 0, base_height+radius+center_height+base_height), App.Rotation(base_rotation+center_rotation+base_rotation, 0, 90), App.Vector(0,0,0))
+        upper_hook.Placement = App.Placement(App.Vector(0, 0, radius+base_height+center_height+base_height), 
+                                             App.Rotation(base_rotation+center_rotation+base_rotation, 0, 90), App.Vector(0,0,0))
+        upper_hook.Label = "Upper hook"
         links.append(upper_hook)
 
+    ##  Circle end
+    elif(form.mode == "circle"):
+        center_height = height-(radius*2+base_height)*2
+        center_rotation = center_height/pitch*360
+
+        lower_circle = makeCircle(doc, radius, wire_diameter)
+        lower_circle.Placement = App.Placement(App.Vector(radius,0,radius),
+                                               App.Rotation(90,0,90))
+        lower_circle.Label = "Lower circle"
+        links.append(lower_circle)
+
+        lower_placement = App.Placement(App.Vector(0, 0, radius*2), 
+                                        App.Rotation(0, 0, 0))
+        center_placement = App.Placement(App.Vector(0, 0, radius*2+base_height), 
+                                         App.Rotation(base_rotation, 0, 0))
+        upper_placement = App.Placement(App.Vector(0, 0, radius*2+base_height+center_height), 
+                                        App.Rotation(base_rotation+center_rotation, 0, 0))
+
+        upper_circle = makeCircle(doc, radius, wire_diameter)
+        upper_circle.Placement = App.Placement(App.Vector(radius*math.cos((base_rotation+center_rotation+base_rotation)/180*math.pi), radius*math.sin((base_rotation+center_rotation+base_rotation)/180*math.pi), radius*2+base_height+center_height+base_height+radius), 
+                                               App.Rotation(base_rotation+center_rotation+base_rotation+90, 0, 90), 
+                                               App.Vector(0,0,0))
+        upper_circle.Label = "Upper circle"
+        links.append(upper_circle)
         
     ##  Flat-end spring as default
     else:
@@ -191,14 +241,18 @@ if(form.success):
         lower_placement = App.Placement(App.Vector(0, 0, 0), App.Rotation(0, 0, 0))
         center_placement = App.Placement(App.Vector(0, 0, base_height), App.Rotation(base_rotation, 0, 0))
         upper_placement = App.Placement(App.Vector(0, 0, base_height+center_height), App.Rotation(base_rotation+center_rotation, 0, 0))
+    ##  Spring end creation end
     
 
+    ##  Spring center segment (common for all spring types)
     center = makeHelix(doc, center_height, pitch, radius, wire_diameter)
     center.Placement = center_placement
     center.Label = "Central segment"
     links.append(center) 
+    ##  Spring center end
     
     
+    ##  If possible, add spring base segments
     if(base_height >= wire_diameter):
         lower = makeHelix(doc, base_height, wire_diameter, radius, wire_diameter)
         lower.Placement = lower_placement
@@ -208,7 +262,7 @@ if(form.success):
         upper.Placement = upper_placement
         upper.Label = "Upper segment"
         links.append(upper)
-
+    ##  Spring base segments end
 
 
     compound = doc.addObject("Part::Compound", "springCompound")
