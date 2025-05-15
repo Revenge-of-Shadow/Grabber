@@ -8,31 +8,73 @@ class GuiClass(QtGui.QDialog):
         super(GuiClass, self).__init__()
         self.initUI()
 
+    def callPitchWarn(self):
+        QtGui.QMessageBox.information(None, "Nyanya", 
+                                     "Pitch value is too low."+
+                                     "\nPitch value must be above the wire diameter,"+
+                                     "\nsince distance between loops must exist.")
+    def callRevolutionsWarn(self):
+        QtGui.QMessageBox.information(None, "Nya nya",
+                                      "Amount of spring revolutions can not be equal to zero.")
+    def callHeightWarn(self):
+        QtGui.QMessageBox.information(None, "Nyannya",
+                                      "Whole spring height must be:"+
+                                      "\n- bigger than two times base length (but base length can be zero!);"+
+                                      "\n- bigger than two times base length and two times radius in case of hook mode;"+
+                                      "\n- bigger than two times base length and four times radius in case of cirlce mode.")
+
     ##  Event handler methods
     def onFlatChosen(self):
-        self.mode = "flat"
+        self.springtype = "flat"
 
     def onHookChosen(self):
-        self.mode = "hook"
+        self.springtype = "hook"
 
     def onCircleChosen(self):
-        self.mode = "circle"
+        self.springtype = "circle"
+
+    def onPitchChosen(self):
+        self.rotmode = "pitch"
+        self.ti_p.setEnabled(True)
+        self.ti_re.setEnabled(False)
+
+    def onRevolutionsChosen(self):
+        self.rotmode = "revolutions"
+        self.ti_re.setEnabled(True)
+        self.ti_p.setEnabled(False)
+
+    def tryQuit(self, success):
+        if(success):
+            if((self.springtype == "circle" and (float(self.ti_h.text()) < (float(self.ti_bh.text())*2+float(self.ti_r.text())*4)))
+                or (self.springtype == "hook" and (float(self.ti_h.text()) < (float(self.ti_bh.text())*2+float(self.ti_r.text())*2)))
+                   or(self.springtype == "flat" and (float(self.ti_h.text()) < (float(self.ti_bh.text())*2)))):
+                self.callHeightWarn()
+                return
+
+            if(self.rotmode == "pitch" and float(self.ti_p.text()) < float(self.ti_wd.text())):
+                self.callPitchWarn()
+                return
+            if(self.rotmode == "revolutions" and float(self.ti_re.text()) == 0):
+                self.callRevolutionsWarn()
+                return
+        self.success = success
+        self.close()
 
     def onOk(self):
-        self.success = True
-        self.close()
+        self.tryQuit(True)
 
     def onCancel(self):
-        self.success = False
-        self.close()
+        self.tryQuit(False)
+
     ##  Event handler methods end
 
 
     def initUI(self): 
         self.success = False
-        self.mode = "flat"
+        self.springtype = "flat"
+        self.rotmode = "pitch" 
         self.setGeometry(250, 250, 320, 400)
-        self.setFixedSize(320, 400)
+        self.setFixedSize(320, 480)
         self.setWindowTitle("Nya")
 
         ##  Labels and inputs.
@@ -70,41 +112,61 @@ class GuiClass(QtGui.QDialog):
         self.ti_r.setFixedWidth(80)
         self.ti_r.move(220, 170)
 
-        self.l_p = QtGui.QLabel("Pitch [mm]:", self)
-        self.l_p.move(20, 220)
+        self.grp_pitch = QtGui.QButtonGroup(self)
+
+        self.rb_p = QtGui.QRadioButton("Pitch [mm]:", self)
+        self.rb_p.clicked.connect(self.onPitchChosen)
+        self.rb_p.move(20, 220)
+        self.grp_pitch.addButton(self.rb_p)
+        self.rb_p.toggle()
         self.ti_p = QtGui.QLineEdit(self)
         self.ti_p.setValidator(validator_double)
         self.ti_p.setText("3")
         self.ti_p.setFixedWidth(80)
         self.ti_p.move(220, 220)
+
+        self.rb_re = QtGui.QRadioButton("Revolutions:", self)
+        self.rb_re.clicked.connect(self.onRevolutionsChosen)
+        self.rb_re.move(20, 270)
+        self.grp_pitch.addButton(self.rb_re)
+        self.ti_re = QtGui.QLineEdit(self)
+        self.ti_re.setValidator(validator_double)
+        self.ti_re.setText("8")
+        self.ti_re.setFixedWidth(80)
+        self.ti_re.move(220, 270)
         ##  Labels and inputs end.
 
         ##  Additional options.
+        self.grp_shape = QtGui.QButtonGroup(self)
         
         self.rb_flat = QtGui.QRadioButton("flat end", self)
         self.rb_flat.clicked.connect(self.onFlatChosen)
+        self.rb_flat.move(20, 360)
+        self.grp_shape.addButton(self.rb_flat)
         self.rb_flat.toggle()
-        self.rb_flat.move(20, 280)
+        
 
         self.rb_hook = QtGui.QRadioButton("hook end", self)
         self.rb_hook.clicked.connect(self.onHookChosen)
-        self.rb_hook.move(210, 280)
+        self.rb_hook.move(210, 360)
+        self.grp_shape.addButton(self.rb_hook)
 
-        self.rb_hook = QtGui.QRadioButton("circle end", self)
-        self.rb_hook.clicked.connect(self.onCircleChosen)
-        self.rb_hook.move(120, 310)
+        self.rb_circle = QtGui.QRadioButton("circle end", self)
+        self.rb_circle.clicked.connect(self.onCircleChosen)
+        self.rb_circle.move(120, 390)
+        self.grp_shape.addButton(self.rb_circle)
         ##  Additional options end.
 
 
         ##  Confirm/Cancel buttons.
         bt_cancel = QtGui.QPushButton("Cancel", self)
         bt_cancel.clicked.connect(self.onCancel)
-        bt_cancel.move(20, 350)
+        bt_cancel.move(20, 440)
 
         bt_ok = QtGui.QPushButton("Make the spring", self)
         bt_ok.clicked.connect(self.onOk)
         bt_ok.setAutoDefault(True)
-        bt_ok.move(190, 350)
+        bt_ok.move(190, 440)
         ##  Confirm/Cancel buttons end.
 
 
@@ -134,13 +196,19 @@ def makeHelix(doc, height, pitch, radius, wire_diameter = 0.5):
     helix.Profile = (circle_sketch, ['',])
     helix.ReferenceAxis = (circle_sketch,['V_Axis'])
 
+    if(pitch < 0):
+        helix.Pitch = -pitch
+        helix.LeftHanded = 1
+    else:
+        helix.Pitch = pitch
+        helix.LeftHanded = 0
+
+
     helix.Mode = 0
-    helix.Pitch = pitch
     helix.Height = height
     helix.Turns = height/pitch
     helix.Angle = 0
     helix.Growth = 0
-    helix.LeftHanded = 0
     helix.Reversed = 0
 
     return body
@@ -173,21 +241,27 @@ if(form.success):
     ##  Get input
     wire_diameter = float(form.ti_wd.text())
     radius = float(form.ti_r.text())
+    radius = radius - wire_diameter/2
     height = float(form.ti_h.text())
     base_height = float(form.ti_bh.text())
+    base_rotation = base_height/wire_diameter*360
+
+    revolutions = float(form.ti_re.text())
     pitch = float(form.ti_p.text())
+    
+      
     ##  Input values end 
 
-    base_rotation = base_height/wire_diameter*360
-    radius = radius - wire_diameter/2
 
     doc = App.activeDocument()
     
     links = []
 
     ##  Hooked spring
-    if(form.mode == "hook"):
+    if(form.springtype == "hook"):
         center_height = height-(radius+base_height)*2
+        if(form.rotmode == "revolutions"):
+            pitch = center_height / revolutions
         center_rotation = center_height/pitch*360
 
         lower_hook = makeHook(doc, radius, wire_diameter)
@@ -209,8 +283,10 @@ if(form.success):
         links.append(upper_hook)
 
     ##  Circle end
-    elif(form.mode == "circle"):
+    elif(form.springtype == "circle"):
         center_height = height-(radius*2+base_height)*2
+        if(form.rotmode == "revolutions"):
+            pitch = center_height / revolutions
         center_rotation = center_height/pitch*360
 
         lower_circle = makeCircle(doc, radius, wire_diameter)
